@@ -54,6 +54,18 @@ object MainApp {
 
   }
 
+  case class ComponentEvent[V, C <: Component[Ref], +Ref <: dom.html.Element](
+      fun: C => Observable[V]
+  ) {
+
+    def -->(observer: Observer[V]) =
+      new Modifier[C] {
+        override def apply(element: C): Unit =
+          ReactiveElement.bindObserver(element, fun(element))(observer)
+      }
+
+  }
+
 // Usage
 
   class BooInput extends Component(div) {
@@ -74,9 +86,7 @@ object MainApp {
       Observer[Command](c => state.update(_.update(c)))
 
     val view = div(
-      span(color := "", child.text <-- state.signal.map(s => {
-        s.text
-      })),
+      span(color := "", child.text <-- state.signal.map(_.text)),
       form(
         input(
           typ := "text",
@@ -100,6 +110,9 @@ object MainApp {
         component => component.state.update(_.copy(value))
       )
 
+    val state =
+      ComponentEvent[BooInput#State, BooInput, dom.html.Element](_.state.signal)
+
   }
 
   // Mounting
@@ -108,9 +121,14 @@ object MainApp {
     println("Starting 'laminar-component'...")
 
     val bus = new EventBus[String]
+    val bus2 = new EventBus[BooInput#State]
 
     val d = div(
-      BooInputTag(BooInput.text := "hi there 2", BooInput.text <-- bus.events)(
+      BooInputTag(
+        BooInput.text := "hi there 2",
+        BooInput.text <-- bus.events,
+        BooInput.state --> bus2.writer
+      )(
         width := "200px"
       ),
       // span(child.text <-- bus.events.collect {
@@ -123,7 +141,8 @@ object MainApp {
           onInput
             .mapTo(thisNode.ref.value) --> bus.writer
         )
-      )
+      ),
+      span(child.text <-- bus2.events.map(_.toString))
     )
 
     // implicit val owner = new Owner {}
