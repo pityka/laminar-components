@@ -13,21 +13,27 @@ lazy val root = project
     libraryDependencies ++= Seq(
       "org.scala-js" %%% "scalajs-dom" % "1.0.0",
       "com.raquo" %%% "laminar" % "0.9.0"
-    ),
-    scalaJSUseMainModuleInitializer := true
+    )
   )
 
-// Automatically generate index-dev.html which uses *-fastopt.js
-resourceGenerators in Compile += Def.task {
-  val source = (resourceDirectory in Compile).value / "index.html"
-  val target = (resourceManaged in Compile).value / "index-dev.html"
+lazy val test = project
+  .in(file("test"))
+  .enablePlugins(ScalaJSPlugin)
+  .settings(
+    skip in publish := true,
+    scalaJSUseMainModuleInitializer := true,
+    resourceGenerators in Compile += Def.task {
+      val source = (resourceDirectory in Compile).value / "index.html"
+      val target = (resourceManaged in Compile).value / "index-dev.html"
 
-  val fullFileName = (artifactPath in (Compile, fullOptJS)).value.getName
-  val fastFileName = (artifactPath in (Compile, fastOptJS)).value.getName
+      val fullFileName = (artifactPath in (Compile, fullOptJS)).value.getName
+      val fastFileName = (artifactPath in (Compile, fastOptJS)).value.getName
 
-  IO.writeLines(target, IO.readLines(source).map { line =>
-    line.replace(fullFileName, fastFileName)
-  })
+      IO.writeLines(target, IO.readLines(source).map { line =>
+        line.replace(fullFileName, fastFileName)
+      })
 
-  Seq(target)
-}.taskValue
+      Seq(target)
+    }.taskValue
+  )
+  .dependsOn(root)
