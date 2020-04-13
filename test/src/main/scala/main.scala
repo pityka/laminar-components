@@ -19,27 +19,59 @@ object MainApp {
     val bus = new EventBus[String]
     val bus2 = new EventBus[BooInput#State]
 
+    // val d = div(
+    //   BooInputTag.comp(
+    //     BooInput.text := "hi there 2",
+    //     BooInput.text <-- bus.events,
+    //     BooInput.state --> bus2.writer,
+    //     BooInput.children := BooInputTag.comp(BooInput.text := "hi there")()
+    //   )(
+    //     width := "200px"
+    //   ),
+    //   // span(child.text <-- bus.events.collect {
+    //   //   case BooInput.DoSomething => "boo"
+    //   //   case _                    => ""
+    //   // }),
+    //   input(
+    //     typ := "text",
+    //     inContext(thisNode =>
+    //       onInput
+    //         .mapTo(thisNode.ref.value) --> bus.writer
+    //     )
+    //   ),
+    //   span(child.text <-- bus2.events.map(_.toString))
+    // )
+
+    var clicked = Var(false)
+
+    val unitObserver = Observer[Unit] { _ =>
+      if (clicked.now == true) clicked.update(_ => false)
+      else clicked.update(_ => true)
+    }
+
     val d = div(
-      BooInputTag(
-        BooInput.text := "hi there 2",
-        BooInput.text <-- bus.events,
-        BooInput.state --> bus2.writer,
-        BooInput.children := BooInputTag(BooInput.text := "hi there")()
-      )(
-        width := "200px"
-      ),
-      // span(child.text <-- bus.events.collect {
-      //   case BooInput.DoSomething => "boo"
-      //   case _                    => ""
-      // }),
-      input(
-        typ := "text",
-        inContext(thisNode =>
-          onInput
-            .mapTo(thisNode.ref.value) --> bus.writer
+      form(
+        TextFieldTag.component(
+          TextField.label := "label",
+          TextField.state.map(_.toString) --> bus.writer,
+          TextField.helperText := "whatever",
+          TextField.disabled <-- clicked.signal,
+          TextField.validation := (s =>
+            if (s.startsWith("A")) Some("AA") else None
+          )
         )
       ),
-      span(child.text <-- bus2.events.map(_.toString))
+      div(child.text <-- bus.events),
+      div(child.text <-- clicked.signal.map(_.toString)),
+      button(
+        "click",
+        typ := "button",
+        inContext(thisNode =>
+          onClick
+            .mapTo(thisNode.ref.value)
+            .map(_ => ()) --> unitObserver
+        )
+      )
     )
 
     // implicit val owner = new Owner {}

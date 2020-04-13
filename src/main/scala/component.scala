@@ -11,36 +11,23 @@ import com.raquo.domtypes.generic.builders.Tag
 import com.raquo.laminar.builders.HtmlTag
 import com.raquo.laminar.nodes.ParentNode
 
-abstract class Component[+Ref <: dom.html.Element](
-    tag: HtmlTag[Ref]
-) extends ReactiveHtmlElement[Ref](tag)
+abstract class Component
+    extends ReactiveHtmlElement[dom.html.Element](span)
     with Owner {
 
-  def view: ReactiveHtmlElement[Ref]
+  lazy val desc: Var[List[ReactiveHtmlElement[dom.html.Element]]] = Var(Nil)
+
+  def view: ReactiveHtmlElement[dom.html.Element]
 
 }
 
-object Component {
-  def sendContext[Parent <: Component[_], Child <: Component[_], State](
-      parent: Parent
-  )(parentState: Signal[State])(
-      updateChild: State => Unit
-  ) = {
-    parentState
-      .foreach(s => updateChild(s))(parent)
-  }
-}
-
-abstract class ComponentTag[C <: Component[dom.html.Element]](
+abstract class ComponentTag[C <: Component](
     createComponent: () => C
 ) extends HtmlTag[dom.html.Element]("_boo_", false) {
 
-  def apply(modifiers1: Modifier[C]*)(
-      modifiers2: Modifier[ReactiveHtmlElement[dom.html.Element]]*
-  ): C = {
+  def component(modifiers1: Modifier[C]*): C = {
     val element = build()
     modifiers1.foreach(modifier => modifier(element))
-    modifiers2.foreach(modifier => modifier(element))
     element
   }
   override def build = {
@@ -50,7 +37,7 @@ abstract class ComponentTag[C <: Component[dom.html.Element]](
   }
 }
 
-case class ComponentAttribute[V, C <: Component[Ref], +Ref <: dom.html.Element](
+case class ComponentAttribute[V, C <: Component](
     fun: V => C => Unit
 ) {
   def :=(value: V) = new Modifier[C] {
@@ -64,9 +51,31 @@ case class ComponentAttribute[V, C <: Component[Ref], +Ref <: dom.html.Element](
 
 }
 
-case class ComponentEvent[V, C <: Component[Ref], +Ref <: dom.html.Element](
+object ComponentAttribute {
+  def children[C <: Component] =
+    ComponentAttribute[List[ReactiveHtmlElement[dom.html.Element]], C] {
+      value => component => component.desc.update(_ => value)
+    }
+  def child[C <: Component] =
+    ComponentAttribute[ReactiveHtmlElement[dom.html.Element], C] {
+      value => component => component.desc.update(_ => List(value))
+    }
+
+  def setter[A, C <: Component, State](
+      state: C => Var[State]
+  )(
+      updateF: (State, A) => State
+  ) =
+    ComponentAttribute[A, C](value =>
+      component => state(component).update(s => updateF(s, value))
+    )
+}
+
+case class ComponentEvent[V, C <: Component](
     fun: C => Observable[V]
 ) {
+
+  def map[K](fun2: V => K) = ComponentEvent((c: C) => fun(c).map(fun2))
 
   def -->(observer: Observer[V]) =
     new Modifier[C] {
